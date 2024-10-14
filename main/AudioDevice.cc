@@ -124,8 +124,8 @@ void AudioDevice::CreateSimplexChannels() {
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
+            .slot_mode = I2S_SLOT_MODE_MONO,
+            .slot_mask = I2S_STD_SLOT_RIGHT,
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
