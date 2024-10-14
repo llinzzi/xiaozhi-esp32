@@ -26,31 +26,31 @@ config AUDIO_INPUT_SAMPLE_RATE
 
 config AUDIO_OUTPUT_SAMPLE_RATE
     int "Audio Output Sample Rate"
-    default 24000
+    default 16000
     help
         Audio output sample rate.
 
 config AUDIO_DEVICE_I2S_MIC_GPIO_WS
     int "I2S GPIO WS"
-    default 4
+    default 9
     help
         GPIO number of the I2S WS.
 
 config AUDIO_DEVICE_I2S_MIC_GPIO_BCLK
     int "I2S GPIO BCLK"
-    default 5
+    default 46
     help
         GPIO number of the I2S BCLK.
 
 config AUDIO_DEVICE_I2S_MIC_GPIO_DIN
     int "I2S GPIO DIN"
-    default 6
+    default 3
     help
         GPIO number of the I2S DIN.
 
 config AUDIO_DEVICE_I2S_SPK_GPIO_DOUT
     int "I2S GPIO DOUT"
-    default 7
+    default 47
     help
         GPIO number of the I2S DOUT.
     
@@ -62,21 +62,21 @@ config AUDIO_DEVICE_I2S_SIMPLEX
     
 config AUDIO_DEVICE_I2S_SPK_GPIO_BCLK
     int "I2S SPK GPIO BCLK"
-    default 15
+    default 21
     depends on AUDIO_DEVICE_I2S_SIMPLEX
     help
         GPIO number of the I2S MIC BCLK.
     
 config AUDIO_DEVICE_I2S_SPK_GPIO_WS
     int "I2S SPK GPIO WS"
-    default 16
+    default 14
     depends on AUDIO_DEVICE_I2S_SIMPLEX
     help
         GPIO number of the I2S MIC WS.
 
 config BOOT_BUTTON_GPIO
     int "Boot Button GPIO"
-    default 0
+    default 1
     help
         GPIO number of the boot button.
 

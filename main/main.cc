@@ -10,6 +10,8 @@
 #include "SystemReset.h"
 
 #define TAG "main"
+#define PA_EN_GPIO GPIO_NUM_13
+
 
 extern "C" void app_main(void)
 {
@@ -27,6 +29,12 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+
+    gpio_reset_pin(PA_EN_GPIO);
+    gpio_set_direction(PA_EN_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(PA_EN_GPIO, 1);
+
 
     // Otherwise, launch the application
     Application::GetInstance().Start();

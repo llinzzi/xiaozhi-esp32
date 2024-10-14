@@ -24,9 +24,9 @@ void AudioDevice::Start(int input_sample_rate, int output_sample_rate) {
     output_sample_rate_ = output_sample_rate;
 
 #ifdef CONFIG_AUDIO_DEVICE_I2S_SIMPLEX
-        CreateSimplexChannels();
+    CreateSimplexChannels();
 #else
-        CreateDuplexChannels();
+    CreateDuplexChannels();
 #endif
 
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
@@ -91,6 +91,17 @@ void AudioDevice::CreateDuplexChannels() {
 
 #ifdef CONFIG_AUDIO_DEVICE_I2S_SIMPLEX
 void AudioDevice::CreateSimplexChannels() {
+    ESP_LOGI(TAG, "创建 Simplex 通道");
+    ESP_LOGI(TAG, "输入采样率: %d Hz, 输出采样率: %d Hz", input_sample_rate_, output_sample_rate_);
+    ESP_LOGI(TAG, "扬声器 I2S 配置: BCLK=%d, WS=%d, DOUT=%d",
+             CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_BCLK,
+             CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_WS,
+             CONFIG_AUDIO_DEVICE_I2S_SPK_GPIO_DOUT);
+    ESP_LOGI(TAG, "麦克风 I2S 配置: BCLK=%d, WS=%d, DIN=%d",
+             CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_BCLK,
+             CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS,
+             CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN);
+
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
         .id = I2S_NUM_0,
@@ -113,8 +124,8 @@ void AudioDevice::CreateSimplexChannels() {
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_MONO,
-            .slot_mask = I2S_STD_SLOT_LEFT,
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
@@ -145,6 +156,9 @@ void AudioDevice::CreateSimplexChannels() {
     std_cfg.gpio_cfg.ws = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_WS;
     std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
     std_cfg.gpio_cfg.din = (gpio_num_t)CONFIG_AUDIO_DEVICE_I2S_MIC_GPIO_DIN;
+    std_cfg.slot_cfg.slot_mode = I2S_SLOT_MODE_MONO;
+    std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
+    
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
     ESP_LOGI(TAG, "Simplex channels created");
 }
