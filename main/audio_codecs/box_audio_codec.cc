@@ -8,7 +8,7 @@ static const char TAG[] = "BoxAudioCodec";
 
 BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, uint8_t es7210_addr, bool input_reference) {
+    gpio_num_t pa_pin, uint8_t es8311_out_addr, uint8_t es8311_in_addr, bool input_reference) {
     duplex_ = true; // 是否双工
     input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
     input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
@@ -29,7 +29,7 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
     // Output
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = I2C_NUM_1,
-        .addr = es8311_addr,
+        .addr = es8311_out_addr,
         .bus_handle = i2c_master_handle,
     };
     out_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
@@ -58,14 +58,18 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
     assert(output_dev_ != NULL);
 
     // Input
-    i2c_cfg.addr = es7210_addr;
+    i2c_cfg.addr = es8311_in_addr;
     in_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
     assert(in_ctrl_if_ != NULL);
 
-    es7210_codec_cfg_t es7210_cfg = {};
-    es7210_cfg.ctrl_if = in_ctrl_if_;
-    es7210_cfg.mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3 | ES7120_SEL_MIC4;
-    in_codec_if_ = es7210_codec_new(&es7210_cfg);
+    es8311_codec_cfg_t es8311_in_cfg = {};
+    es8311_in_cfg.ctrl_if = in_ctrl_if_;
+    es8311_in_cfg.gpio_if = gpio_if_;
+    es8311_in_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_ADC;
+    es8311_in_cfg.pa_pin = GPIO_NUM_NC;  // 输入不需要PA
+    es8311_in_cfg.use_mclk = true;
+    es8311_in_cfg.hw_gain.codec_dac_voltage = 3.3;
+    in_codec_if_ = es8311_codec_new(&es8311_in_cfg);
     assert(in_codec_if_ != NULL);
 
     dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_IN;
@@ -190,16 +194,13 @@ void BoxAudioCodec::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 4,
+            .channel = 1,
             .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
         };
-        if (input_reference_) {
-            fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
-        }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), 40.0));
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 20.0));  // 调整增益值
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
