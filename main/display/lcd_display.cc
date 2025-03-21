@@ -578,6 +578,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
     lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN); // 隐藏情绪标签
 
     chat_message_label_ = lv_label_create(content_);
     lv_label_set_text(chat_message_label_, "");
@@ -585,6 +586,16 @@ void LcdDisplay::SetupUI() {
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
     lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+    lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN); // 隐藏聊天消息标签
+    
+    // 创建时间显示标签
+    lv_obj_t* time_label = lv_label_create(content_);
+    lv_label_set_text(time_label, "00:00");
+    lv_obj_set_style_text_font(time_label, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(time_label, current_theme.text, 0);
+    lv_obj_set_style_text_align(time_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(time_label, LV_HOR_RES * 0.9);
+    lv_obj_center(time_label); // 确保标签居中
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
