@@ -11,6 +11,11 @@
 
 #include "board.h"
 
+// 引用 clockfont 字体
+extern "C" {
+#include "clockfont.h"
+}
+
 #define TAG "LcdDisplay"
 
 // Color definitions for dark theme
@@ -589,13 +594,13 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN); // 隐藏聊天消息标签
     
     // 创建时间显示标签
-    lv_obj_t* time_label = lv_label_create(content_);
-    lv_label_set_text(time_label, "00:00");
-    lv_obj_set_style_text_font(time_label, fonts_.text_font, 0);
-    lv_obj_set_style_text_color(time_label, current_theme.text, 0);
-    lv_obj_set_style_text_align(time_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(time_label, LV_HOR_RES * 0.9);
-    lv_obj_center(time_label); // 确保标签居中
+    time_label_ = lv_label_create(content_);
+    lv_label_set_text(time_label_, "00:00");
+    lv_obj_set_style_text_font(time_label_, &clockfont, 0); // 使用 clockfont 字体
+    lv_obj_set_style_text_color(time_label_, current_theme.text, 0);
+    lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(time_label_, LV_HOR_RES * 0.9);
+    lv_obj_center(time_label_); // 确保标签居中
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
@@ -802,7 +807,7 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
                 if (strcmp(bubble_type, "user") == 0) {
                     lv_obj_set_style_bg_color(bubble, current_theme.user_bubble, 0);
                 } else if (strcmp(bubble_type, "assistant") == 0) {
-                    lv_obj_set_style_bg_color(bubble, current_theme.assistant_bubble, 0); 
+                    lv_obj_set_style_bg_color(bubble, current_theme.assistant_bubble, 0);
                 } else if (strcmp(bubble_type, "system") == 0) {
                     lv_obj_set_style_bg_color(bubble, current_theme.system_bubble, 0);
                 }
@@ -896,4 +901,30 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
 
     // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
+}
+
+
+void LcdDisplay::UpdateTime() {
+    if (time_label_ == nullptr) {
+        return;
+    }
+    
+    // 不使用 DisplayLockGuard，因为 Update 方法已经在正确的上下文中调用
+    
+    // 获取当前时间
+    time_t now = time(NULL);
+    char time_str[64];
+    strftime(time_str, sizeof(time_str), "%H:%M", localtime(&now));
+    
+    // 更新时间标签 - 这个操作必须在 LVGL 任务上下文中执行
+    lv_label_set_text(time_label_, time_str);
+}
+
+void LcdDisplay::Update() {
+    // 首先调用父类的 Update 方法
+    Display::Update();
+    
+    // 然后调用 UpdateTime 方法更新时间
+    DisplayLockGuard lock(this);
+    UpdateTime();
 }

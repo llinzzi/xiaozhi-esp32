@@ -18,7 +18,8 @@ protected:
     lv_obj_t* status_bar_ = nullptr;
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
-    lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* side_bar_ = nullptr;    
+    lv_obj_t* time_label_ = nullptr;
 
     DisplayFonts fonts_;
 
@@ -41,6 +42,15 @@ public:
 
     // Add theme switching function
     virtual void SetTheme(const std::string& theme_name) override;
+    
+    // 设置时间显示
+    void SetTime(const char* time_str);
+
+    // 更新时间显示
+    virtual void UpdateTime();
+    
+    // 重写父类的 Update 方法
+    virtual void Update() override;
 };
 
 // RGB LCD显示器
