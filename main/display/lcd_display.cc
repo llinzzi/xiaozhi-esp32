@@ -14,14 +14,14 @@
 #define TAG "LcdDisplay"
 
 // Color definitions for dark theme
-#define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
+#define DARK_BACKGROUND_COLOR       lv_color_hex(0x000000)     // Dark background
 #define DARK_TEXT_COLOR             lv_color_white()           // White text
-#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x1E1E1E)     // Slightly lighter than background
+#define DARK_CHAT_BACKGROUND_COLOR  lv_color_hex(0x000000)     // Darker than background
 #define DARK_USER_BUBBLE_COLOR      lv_color_hex(0x1A6C37)     // Dark green
-#define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x333333)     // Dark gray
+#define DARK_ASSISTANT_BUBBLE_COLOR lv_color_hex(0x000000)     // Dark gray
 #define DARK_SYSTEM_BUBBLE_COLOR    lv_color_hex(0x2A2A2A)     // Medium gray
 #define DARK_SYSTEM_TEXT_COLOR      lv_color_hex(0xAAAAAA)     // Light gray text
-#define DARK_BORDER_COLOR           lv_color_hex(0x333333)     // Dark gray border
+#define DARK_BORDER_COLOR           lv_color_hex(0x000000)     // Dark gray border
 #define DARK_LOW_BATTERY_COLOR      lv_color_hex(0xFF0000)     // Red for dark mode
 
 // Color definitions for light theme
@@ -75,7 +75,7 @@ static const ThemeColors LIGHT_THEME = {
 };
 
 // Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
+static ThemeColors current_theme = DARK_THEME;
 
 
 LV_FONT_DECLARE(font_awesome_30_4);
