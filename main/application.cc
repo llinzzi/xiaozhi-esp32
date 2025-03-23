@@ -553,13 +553,13 @@ void Application::OnClockTimer() {
         // If we have synchronized server time, set the status to clock "HH:MM" if the device is idle
         if (ota_.HasServerTime()) {
             if (device_state_ == kDeviceStateIdle) {
-                Schedule([this]() {
-                    // Set status to clock "HH:MM"
-                    time_t now = time(NULL);
-                    char time_str[64];
-                    strftime(time_str, sizeof(time_str), "%H:%M  ", localtime(&now));
-                    Board::GetInstance().GetDisplay()->SetStatus(time_str);
-                });
+                // Schedule([this]() {
+                //     // Set status to clock "HH:MM"
+                //     time_t now = time(NULL);
+                //     char time_str[64];
+                //     strftime(time_str, sizeof(time_str), "%H:%M  ", localtime(&now));
+                //     Board::GetInstance().GetDisplay()->SetStatus(time_str);
+                // });
             }
         }
     }
