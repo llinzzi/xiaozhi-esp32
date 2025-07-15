@@ -223,8 +223,9 @@ std::string WifiBoard::GetDeviceStatusJson() {
     auto audio_speaker = cJSON_CreateObject();
     auto audio_codec = board.GetAudioCodec();
     if (audio_codec) {
-        cJSON_AddNumberToObject(audio_speaker, "volume", audio_codec->output_volume());
+        cJSON_AddNumberToObject(audio_speaker, "volume", 70); // Default volume
     }
+
     cJSON_AddItemToObject(root, "audio_speaker", audio_speaker);
 
     // Screen brightness

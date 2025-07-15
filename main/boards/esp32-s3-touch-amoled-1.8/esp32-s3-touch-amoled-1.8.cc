@@ -6,8 +6,6 @@
 #include "audio_codecs/es8311_audio_codec.h"
 #include "application.h"
 #include "button.h"
-#include "led/single_led.h"
-#include "mcp_server.h"
 #include "config.h"
 #include "power_save_timer.h"
 #include "axp2101.h"
@@ -288,17 +286,7 @@ private:
         ESP_LOGI(TAG, "Touch panel initialized successfully");
     }
 
-    // 初始化工具
-    void InitializeTools() {
-        auto &mcp_server = McpServer::GetInstance();
-        mcp_server.AddTool("self.system.reconfigure_wifi",
-            "Reboot the device and enter WiFi configuration mode.\n"
-            "**CAUTION** You must ask the user to confirm this action.",
-            PropertyList(), [this](const PropertyList& properties) {
-                ResetWifiConfiguration();
-                return true;
-            });
-    }
+
 
 public:
     WaveshareEsp32s3TouchAMOLED1inch8() :
@@ -311,7 +299,6 @@ public:
         InitializeSH8601Display();
         InitializeTouch();
         InitializeButtons();
-        InitializeTools();
     }
 
     virtual AudioCodec* GetAudioCodec() override {

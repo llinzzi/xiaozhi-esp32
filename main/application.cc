@@ -8,22 +8,8 @@
 #include "websocket_protocol.h"
 #include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
-#include "mcp_server.h"
-#include "audio_debugger.h"
 
-#if CONFIG_USE_AUDIO_PROCESSOR
-#include "afe_audio_processor.h"
-#else
-#include "no_audio_processor.h"
-#endif
 
-#if CONFIG_USE_AFE_WAKE_WORD
-#include "afe_wake_word.h"
-#elif CONFIG_USE_ESP_WAKE_WORD
-#include "esp_wake_word.h"
-#else
-#include "no_wake_word.h"
-#endif
 
 #include <cstring>
 #include <esp_log.h>
@@ -53,27 +39,7 @@ Application::Application() {
     event_group_ = xEventGroupCreate();
     background_task_ = new BackgroundTask(4096 * 7);
 
-#if CONFIG_USE_DEVICE_AEC
-    aec_mode_ = kAecOnDeviceSide;
-#elif CONFIG_USE_SERVER_AEC
-    aec_mode_ = kAecOnServerSide;
-#else
-    aec_mode_ = kAecOff;
-#endif
 
-#if CONFIG_USE_AUDIO_PROCESSOR
-    audio_processor_ = std::make_unique<AfeAudioProcessor>();
-#else
-    audio_processor_ = std::make_unique<NoAudioProcessor>();
-#endif
-
-#if CONFIG_USE_AFE_WAKE_WORD
-    wake_word_ = std::make_unique<AfeWakeWord>();
-#elif CONFIG_USE_ESP_WAKE_WORD
-    wake_word_ = std::make_unique<EspWakeWord>();
-#else
-    wake_word_ = std::make_unique<NoWakeWord>();
-#endif
 
     esp_timer_create_args_t clock_timer_args = {
         .callback = [](void* arg) {
@@ -146,7 +112,6 @@ void Application::CheckNewVersion(Ota& ota) {
 
             auto& board = Board::GetInstance();
             board.SetPowerSaveMode(false);
-            wake_word_->StopDetection();
             // 预先关闭音频输出，避免升级过程有音频操作
             auto codec = board.GetAudioCodec();
             codec->EnableInput(false);
@@ -328,74 +293,16 @@ void Application::ToggleChatState() {
                 }
             }
 
-            SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
+            // SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
         Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
         });
     } else if (device_state_ == kDeviceStateListening) {
         Schedule([this]() {
             protocol_->CloseAudioChannel();
         });
     }
-}
-
-void Application::StartListening() {
-    if (device_state_ == kDeviceStateActivating) {
-        SetDeviceState(kDeviceStateIdle);
-        return;
-    } else if (device_state_ == kDeviceStateWifiConfiguring) {
-        EnterAudioTestingMode();
-        return;
-    }
-
-    if (!protocol_) {
-        ESP_LOGE(TAG, "Protocol not initialized");
-        return;
-    }
-    
-    if (device_state_ == kDeviceStateIdle) {
-        Schedule([this]() {
-            if (!protocol_->IsAudioChannelOpened()) {
-                SetDeviceState(kDeviceStateConnecting);
-                if (!protocol_->OpenAudioChannel()) {
-                    return;
-                }
-            }
-
-            SetListeningMode(kListeningModeManualStop);
-        });
-    } else if (device_state_ == kDeviceStateSpeaking) {
-        Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
-            SetListeningMode(kListeningModeManualStop);
-        });
-    }
-}
-
-void Application::StopListening() {
-    if (device_state_ == kDeviceStateAudioTesting) {
-        ExitAudioTestingMode();
-        return;
-    }
-
-    const std::array<int, 3> valid_states = {
-        kDeviceStateListening,
-        kDeviceStateSpeaking,
-        kDeviceStateIdle,
-    };
-    // If not valid, do nothing
-    if (std::find(valid_states.begin(), valid_states.end(), device_state_) == valid_states.end()) {
-        return;
-    }
-
-    Schedule([this]() {
-        if (device_state_ == kDeviceStateListening) {
-            protocol_->SendStopListening();
-            SetDeviceState(kDeviceStateIdle);
-        }
-    });
 }
 
 void Application::Start() {
@@ -459,10 +366,7 @@ void Application::Start() {
     // Initialize the protocol
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
-    // Add MCP common tools before initializing the protocol
-#if CONFIG_IOT_PROTOCOL_MCP
-    McpServer::GetInstance().AddCommonTools();
-#endif
+
 
     if (ota.HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
@@ -490,14 +394,6 @@ void Application::Start() {
                 protocol_->server_sample_rate(), codec->output_sample_rate());
         }
 
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        auto& thing_manager = iot::ThingManager::GetInstance();
-        protocol_->SendIotDescriptors(thing_manager.GetDescriptorsJson());
-        std::string states;
-        if (thing_manager.GetStatesJson(states, false)) {
-            protocol_->SendIotStates(states);
-        }
-#endif
     });
     protocol_->OnAudioChannelClosed([this, &board]() {
         board.SetPowerSaveMode(true);
@@ -554,24 +450,7 @@ void Application::Start() {
                     display->SetEmotion(emotion_str.c_str());
                 });
             }
-#if CONFIG_IOT_PROTOCOL_MCP
-        } else if (strcmp(type->valuestring, "mcp") == 0) {
-            auto payload = cJSON_GetObjectItem(root, "payload");
-            if (cJSON_IsObject(payload)) {
-                McpServer::GetInstance().ParseMessage(payload);
-            }
-#endif
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-        } else if (strcmp(type->valuestring, "iot") == 0) {
-            auto commands = cJSON_GetObjectItem(root, "commands");
-            if (cJSON_IsArray(commands)) {
-                auto& thing_manager = iot::ThingManager::GetInstance();
-                for (int i = 0; i < cJSON_GetArraySize(commands); ++i) {
-                    auto command = cJSON_GetArrayItem(commands, i);
-                    thing_manager.Invoke(command);
-                }
-            }
-#endif
+
         } else if (strcmp(type->valuestring, "system") == 0) {
             auto command = cJSON_GetObjectItem(root, "command");
             if (cJSON_IsString(command)) {
@@ -600,103 +479,6 @@ void Application::Start() {
     });
     bool protocol_started = protocol_->Start();
 
-    audio_debugger_ = std::make_unique<AudioDebugger>();
-    audio_processor_->Initialize(codec);
-    audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (audio_send_queue_.size() >= MAX_AUDIO_PACKETS_IN_QUEUE) {
-                ESP_LOGW(TAG, "Too many audio packets in queue, drop the newest packet");
-                return;
-            }
-        }
-        background_task_->Schedule([this, data = std::move(data)]() mutable {
-            opus_encoder_->Encode(std::move(data), [this](std::vector<uint8_t>&& opus) {
-                AudioStreamPacket packet;
-                packet.payload = std::move(opus);
-#ifdef CONFIG_USE_SERVER_AEC
-                {
-                    std::lock_guard<std::mutex> lock(timestamp_mutex_);
-                    if (!timestamp_queue_.empty()) {
-                        packet.timestamp = timestamp_queue_.front();
-                        timestamp_queue_.pop_front();
-                    } else {
-                        packet.timestamp = 0;
-                    }
-
-                    if (timestamp_queue_.size() > 3) { // 限制队列长度3
-                        timestamp_queue_.pop_front(); // 该包发送前先出队保持队列长度
-                        return;
-                    }
-                }
-#endif
-                std::lock_guard<std::mutex> lock(mutex_);
-                if (audio_send_queue_.size() >= MAX_AUDIO_PACKETS_IN_QUEUE) {
-                    ESP_LOGW(TAG, "Too many audio packets in queue, drop the oldest packet");
-                    audio_send_queue_.pop_front();
-                }
-                audio_send_queue_.emplace_back(std::move(packet));
-                xEventGroupSetBits(event_group_, SEND_AUDIO_EVENT);
-            });
-        });
-    });
-    audio_processor_->OnVadStateChange([this](bool speaking) {
-        if (device_state_ == kDeviceStateListening) {
-            Schedule([this, speaking]() {
-                if (speaking) {
-                    voice_detected_ = true;
-                } else {
-                    voice_detected_ = false;
-                }
-                auto led = Board::GetInstance().GetLed();
-                led->OnStateChanged();
-            });
-        }
-    });
-
-    wake_word_->Initialize(codec);
-    wake_word_->OnWakeWordDetected([this](const std::string& wake_word) {
-        Schedule([this, &wake_word]() {
-            if (!protocol_) {
-                return;
-            }
-
-            if (device_state_ == kDeviceStateIdle) {
-                wake_word_->EncodeWakeWordData();
-
-                if (!protocol_->IsAudioChannelOpened()) {
-                    SetDeviceState(kDeviceStateConnecting);
-                    if (!protocol_->OpenAudioChannel()) {
-                        wake_word_->StartDetection();
-                        return;
-                    }
-                }
-
-                ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_USE_AFE_WAKE_WORD
-                AudioStreamPacket packet;
-                // Encode and send the wake word data to the server
-                while (wake_word_->GetWakeWordOpus(packet.payload)) {
-                    protocol_->SendAudio(packet);
-                }
-                // Set the chat state to wake word detected
-                protocol_->SendWakeWordDetected(wake_word);
-#else
-                // Play the pop up sound to indicate the wake word is detected
-                // And wait 60ms to make sure the queue has been processed by audio task
-                ResetDecoder();
-                PlaySound(Lang::Sounds::P3_POPUP);
-                vTaskDelay(pdMS_TO_TICKS(60));
-#endif
-                SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
-            } else if (device_state_ == kDeviceStateSpeaking) {
-                AbortSpeaking(kAbortReasonWakeWordDetected);
-            } else if (device_state_ == kDeviceStateActivating) {
-                SetDeviceState(kDeviceStateIdle);
-            }
-        });
-    });
-    wake_word_->StartDetection();
 
     // Wait for the new version check to finish
     xEventGroupWaitBits(event_group_, CHECK_NEW_VERSION_DONE_EVENT, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -879,27 +661,6 @@ void Application::OnAudioInput() {
         }
     }
 
-    if (wake_word_->IsDetectionRunning()) {
-        std::vector<int16_t> data;
-        int samples = wake_word_->GetFeedSize();
-        if (samples > 0) {
-            if (ReadAudio(data, 16000, samples)) {
-                wake_word_->Feed(data);
-                return;
-            }
-        }
-    }
-
-    if (audio_processor_->IsRunning()) {
-        std::vector<int16_t> data;
-        int samples = audio_processor_->GetFeedSize();
-        if (samples > 0) {
-            if (ReadAudio(data, 16000, samples)) {
-                audio_processor_->Feed(data);
-                return;
-            }
-        }
-    }
 
     vTaskDelay(pdMS_TO_TICKS(OPUS_FRAME_DURATION_MS / 2));
 }
@@ -943,24 +704,10 @@ bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
         }
     }
     
-    // 音频调试：发送原始音频数据
-    if (audio_debugger_) {
-        audio_debugger_->Feed(data);
-    }
-    
+
     return true;
 }
 
-void Application::AbortSpeaking(AbortReason reason) {
-    ESP_LOGI(TAG, "Abort speaking");
-    aborted_ = true;
-    protocol_->SendAbortSpeaking(reason);
-}
-
-void Application::SetListeningMode(ListeningMode mode) {
-    listening_mode_ = mode;
-    SetDeviceState(kDeviceStateListening);
-}
 
 void Application::SetDeviceState(DeviceState state) {
     if (device_state_ == state) {
@@ -968,7 +715,7 @@ void Application::SetDeviceState(DeviceState state) {
     }
     
     clock_ticks_ = 0;
-    auto previous_state = device_state_;
+    // auto previous_state = device_state_;
     device_state_ = state;
     ESP_LOGI(TAG, "STATE: %s", STATE_STRINGS[device_state_]);
     // The state is changed, wait for all background tasks to finish
@@ -976,15 +723,12 @@ void Application::SetDeviceState(DeviceState state) {
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto led = board.GetLed();
-    led->OnStateChanged();
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
-            audio_processor_->Stop();
-            wake_word_->StartDetection();
+
             break;
         case kDeviceStateConnecting:
             display->SetStatus(Lang::Strings::CONNECTING);
@@ -995,37 +739,14 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
-            // Update the IoT states before sending the start listening command
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-            UpdateIotStates();
-#endif
-
-            // Make sure the audio processor is running
-            if (!audio_processor_->IsRunning()) {
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
-                if (previous_state == kDeviceStateSpeaking) {
-                    audio_decode_queue_.clear();
-                    audio_decode_cv_.notify_all();
-                    // FIXME: Wait for the speaker to empty the buffer
-                    vTaskDelay(pdMS_TO_TICKS(120));
-                }
-                opus_encoder_->ResetState();
-                audio_processor_->Start();
-                wake_word_->StopDetection();
-            }
             break;
+      
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
 
             if (listening_mode_ != kListeningModeRealtime) {
-                audio_processor_->Stop();
                 // Only AFE wake word can be detected in speaking mode
-#if CONFIG_USE_AFE_WAKE_WORD
-                wake_word_->StartDetection();
-#else
-                wake_word_->StopDetection();
-#endif
+
             }
             ResetDecoder();
             break;
@@ -1060,40 +781,10 @@ void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
     }
 }
 
-void Application::UpdateIotStates() {
-#if CONFIG_IOT_PROTOCOL_XIAOZHI
-    auto& thing_manager = iot::ThingManager::GetInstance();
-    std::string states;
-    if (thing_manager.GetStatesJson(states, true)) {
-        protocol_->SendIotStates(states);
-    }
-#endif
-}
 
 void Application::Reboot() {
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
-}
-
-void Application::WakeWordInvoke(const std::string& wake_word) {
-    if (device_state_ == kDeviceStateIdle) {
-        ToggleChatState();
-        Schedule([this, wake_word]() {
-            if (protocol_) {
-                protocol_->SendWakeWordDetected(wake_word); 
-            }
-        }); 
-    } else if (device_state_ == kDeviceStateSpeaking) {
-        Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
-        });
-    } else if (device_state_ == kDeviceStateListening) {   
-        Schedule([this]() {
-            if (protocol_) {
-                protocol_->CloseAudioChannel();
-            }
-        });
-    }
 }
 
 bool Application::CanEnterSleepMode() {
@@ -1107,39 +798,4 @@ bool Application::CanEnterSleepMode() {
 
     // Now it is safe to enter sleep mode
     return true;
-}
-
-void Application::SendMcpMessage(const std::string& payload) {
-    Schedule([this, payload]() {
-        if (protocol_) {
-            protocol_->SendMcpMessage(payload);
-        }
-    });
-}
-
-void Application::SetAecMode(AecMode mode) {
-    aec_mode_ = mode;
-    Schedule([this]() {
-        auto& board = Board::GetInstance();
-        auto display = board.GetDisplay();
-        switch (aec_mode_) {
-        case kAecOff:
-            audio_processor_->EnableDeviceAec(false);
-            display->ShowNotification(Lang::Strings::RTC_MODE_OFF);
-            break;
-        case kAecOnServerSide:
-            audio_processor_->EnableDeviceAec(false);
-            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
-            break;
-        case kAecOnDeviceSide:
-            audio_processor_->EnableDeviceAec(true);
-            display->ShowNotification(Lang::Strings::RTC_MODE_ON);
-            break;
-        }
-
-        // If the AEC mode is changed, close the audio channel
-        if (protocol_ && protocol_->IsAudioChannelOpened()) {
-            protocol_->CloseAudioChannel();
-        }
-    });
 }

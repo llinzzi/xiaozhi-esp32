@@ -4,6 +4,7 @@
 #include "display.h"
 #include "font_awesome_symbols.h"
 #include "assets/lang_config.h"
+#include "audio_codecs/audio_codec.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>

@@ -20,9 +20,6 @@
 #include "protocol.h"
 #include "ota.h"
 #include "background_task.h"
-#include "audio_processor.h"
-#include "wake_word.h"
-#include "audio_debugger.h"
 
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
@@ -69,17 +66,10 @@ public:
     void SetDeviceState(DeviceState state);
     void Alert(const char* status, const char* message, const char* emotion = "", const std::string_view& sound = "");
     void DismissAlert();
-    void AbortSpeaking(AbortReason reason);
     void ToggleChatState();
-    void StartListening();
-    void StopListening();
-    void UpdateIotStates();
     void Reboot();
-    void WakeWordInvoke(const std::string& wake_word);
     void PlaySound(const std::string_view& sound);
     bool CanEnterSleepMode();
-    void SendMcpMessage(const std::string& payload);
-    void SetAecMode(AecMode mode);
     bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     AecMode GetAecMode() const { return aec_mode_; }
     BackgroundTask* GetBackgroundTask() const { return background_task_; }
@@ -88,9 +78,7 @@ private:
     Application();
     ~Application();
 
-    std::unique_ptr<WakeWord> wake_word_;
-    std::unique_ptr<AudioProcessor> audio_processor_;
-    std::unique_ptr<AudioDebugger> audio_debugger_;
+
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
     std::unique_ptr<Protocol> protocol_;
@@ -135,7 +123,6 @@ private:
     void CheckNewVersion(Ota& ota);
     void ShowActivationCode(const std::string& code, const std::string& message);
     void OnClockTimer();
-    void SetListeningMode(ListeningMode mode);
     void AudioLoop();
     void EnterAudioTestingMode();
     void ExitAudioTestingMode();
