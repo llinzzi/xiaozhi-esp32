@@ -45,6 +45,15 @@ void McpServer::AddCommonTools() {
             return board.GetDeviceStatusJson();
         });
 
+    
+    AddTool("self.get_test",
+        "Get the test result of the device.",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            ESP_LOGI(TAG, "Get test result");
+            return true;
+        });
+
     AddTool("self.audio_speaker.set_volume", 
         "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.",
         PropertyList({
