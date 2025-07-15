@@ -7,7 +7,6 @@
 #include "mqtt_protocol.h"
 #include "websocket_protocol.h"
 #include "font_awesome_symbols.h"
-#include "iot/thing_manager.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 #include "audio_debugger.h"
