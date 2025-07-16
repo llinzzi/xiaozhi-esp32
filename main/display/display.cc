@@ -138,7 +138,6 @@ void Display::UpdateStatusBar(bool update_all) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // 如果低电量提示框隐藏，则显示
                     lv_obj_clear_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
                     auto& app = Application::GetInstance();
-                    app.PlaySound(Lang::Sounds::P3_LOW_BATTERY);
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty
