@@ -19,7 +19,11 @@
 
 #define TAG "Application"
 
-
+/**
+ * @brief 设备状态字符串映射表
+ * 
+ * 用于将设备状态枚举值转换为可读的字符串，便于日志输出和调试
+ */
 static const char* const STATE_STRINGS[] = {
     "unknown",
     "starting",
@@ -35,6 +39,14 @@ static const char* const STATE_STRINGS[] = {
     "invalid_state"
 };
 
+/**
+ * @brief Application类构造函数
+ * 
+ * 初始化应用程序的核心组件：
+ * - 创建事件组用于任务间通信
+ * - 创建后台任务处理器
+ * - 创建时钟定时器，用于定期更新状态栏
+ */
 Application::Application() {
     event_group_ = xEventGroupCreate();
     background_task_ = new BackgroundTask(4096 * 7);
@@ -54,6 +66,14 @@ Application::Application() {
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
 }
 
+/**
+ * @brief Application类析构函数
+ * 
+ * 清理资源：
+ * - 停止并删除时钟定时器
+ * - 删除后台任务处理器
+ * - 删除事件组
+ */
 Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
@@ -65,6 +85,18 @@ Application::~Application() {
     vEventGroupDelete(event_group_);
 }
 
+/**
+ * @brief 检查新版本并处理激活流程
+ * 
+ * 工作流程：
+ * 1. 设置设备状态为激活中
+ * 2. 检查是否有新版本可用
+ * 3. 如果有新版本，执行升级流程
+ * 4. 如果需要激活，显示激活码并等待激活
+ * 5. 激活成功后继续正常流程
+ * 
+ * @param ota OTA管理器实例
+ */
 void Application::CheckNewVersion(Ota& ota) {
     const int MAX_RETRY = 10;
     int retry_count = 0;
@@ -170,6 +202,16 @@ void Application::CheckNewVersion(Ota& ota) {
     }
 }
 
+/**
+ * @brief 显示激活码并播放数字音效
+ * 
+ * 功能：
+ * - 将激活码的每个数字转换为对应的音效
+ * - 通过音频播放激活码，方便用户输入
+ * 
+ * @param code 激活码字符串
+ * @param message 激活提示消息
+ */
 void Application::ShowActivationCode(const std::string& code, const std::string& message) {
     struct digit_sound {
         char digit;
@@ -199,6 +241,20 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
     }
 }
 
+/**
+ * @brief 显示警告信息
+ * 
+ * 功能：
+ * - 更新显示状态
+ * - 设置表情
+ * - 显示聊天消息
+ * - 播放提示音效
+ * 
+ * @param status 状态文本
+ * @param message 消息内容
+ * @param emotion 表情类型
+ * @param sound 音效数据
+ */
 void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert %s: %s [%s]", status, message, emotion);
     auto display = Board::GetInstance().GetDisplay();
@@ -211,6 +267,11 @@ void Application::Alert(const char* status, const char* message, const char* emo
     }
 }
 
+/**
+ * @brief 清除警告信息
+ * 
+ * 当设备处于空闲状态时，清除警告并恢复正常显示
+ */
 void Application::DismissAlert() {
     if (device_state_ == kDeviceStateIdle) {
         auto display = Board::GetInstance().GetDisplay();
@@ -220,6 +281,16 @@ void Application::DismissAlert() {
     }
 }
 
+/**
+ * @brief 播放音效
+ * 
+ * 工作流程：
+ * 1. 等待之前的音频播放完成
+ * 2. 解析P3格式的音频数据
+ * 3. 将音频包添加到解码队列
+ * 
+ * @param sound P3格式的音效数据
+ */
 void Application::PlaySound(const std::string_view& sound) {
     // Wait for the previous sound to finish
     {
@@ -249,12 +320,22 @@ void Application::PlaySound(const std::string_view& sound) {
     }
 }
 
+/**
+ * @brief 进入音频测试模式
+ * 
+ * 用于测试麦克风输入和音频输出功能
+ */
 void Application::EnterAudioTestingMode() {
     ESP_LOGI(TAG, "Entering audio testing mode");
     ResetDecoder();
     SetDeviceState(kDeviceStateAudioTesting);
 }
 
+/**
+ * @brief 退出音频测试模式
+ * 
+ * 将测试音频数据转移到正常播放队列
+ */
 void Application::ExitAudioTestingMode() {
     ESP_LOGI(TAG, "Exiting audio testing mode");
     SetDeviceState(kDeviceStateWifiConfiguring);
@@ -264,10 +345,25 @@ void Application::ExitAudioTestingMode() {
     audio_decode_cv_.notify_all();
 }
 
+/**
+ * @brief 切换聊天状态
+ * 
+ * 目前为空实现，预留接口
+ */
 void Application::ToggleChatState() {
   
 }
 
+/**
+ * @brief 应用程序主启动函数
+ * 
+ * 完整的启动流程：
+ * 1. 初始化显示和音频编解码器
+ * 2. 启动网络连接
+ * 3. 检查新版本和激活
+ * 4. 初始化通信协议（MQTT/WebSocket）
+ * 5. 进入主事件循环
+ */
 void Application::Start() {
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
@@ -461,6 +557,14 @@ void Application::Start() {
     MainEventLoop();
 }
 
+/**
+ * @brief 时钟定时器回调函数
+ * 
+ * 功能：
+ * - 更新状态栏显示
+ * - 定期打印系统信息
+ * - 如果已同步服务器时间，在空闲状态显示时钟
+ */
 void Application::OnClockTimer() {
     clock_ticks_++;
 
@@ -488,7 +592,13 @@ void Application::OnClockTimer() {
     }
 }
 
-// Add a async task to MainLoop
+/**
+ * @brief 调度异步任务到主循环
+ * 
+ * 将回调函数添加到主任务队列，通过事件组通知主循环执行
+ * 
+ * @param callback 要执行的回调函数
+ */
 void Application::Schedule(std::function<void()> callback) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -497,9 +607,16 @@ void Application::Schedule(std::function<void()> callback) {
     xEventGroupSetBits(event_group_, SCHEDULE_EVENT);
 }
 
-// The Main Event Loop controls the chat state and websocket connection
-// If other tasks need to access the websocket or chat state,
-// they should use Schedule to call this function
+/**
+ * @brief 主事件循环
+ * 
+ * 核心事件处理循环：
+ * - 处理音频发送事件
+ * - 处理调度任务事件
+ * - 管理聊天状态和WebSocket连接
+ * 
+ * 优先级设置为3，避免被后台任务（优先级2）中断
+ */
 void Application::MainEventLoop() {
     // Raise the priority of the main event loop to avoid being interrupted by background tasks (which has priority 2)
     vTaskPrioritySet(NULL, 3);
@@ -529,7 +646,13 @@ void Application::MainEventLoop() {
     }
 }
 
-// The Audio Loop is used to input and output audio data
+/**
+ * @brief 音频处理循环
+ * 
+ * 持续处理音频输入和输出：
+ * - 调用音频输入处理
+ * - 如果输出已启用，调用音频输出处理
+ */
 void Application::AudioLoop() {
     auto codec = Board::GetInstance().GetAudioCodec();
     while (true) {
@@ -540,6 +663,16 @@ void Application::AudioLoop() {
     }
 }
 
+/**
+ * @brief 音频输出处理
+ * 
+ * 工作流程：
+ * 1. 检查是否正在解码音频
+ * 2. 从解码队列获取音频包
+ * 3. 同步采样率和帧时长
+ * 4. 在后台任务中解码音频
+ * 5. 输出到音频编解码器
+ */
 void Application::OnAudioOutput() {
     if (busy_decoding_audio_) {
         return;
@@ -594,6 +727,14 @@ void Application::OnAudioOutput() {
     }
 }
 
+/**
+ * @brief 音频输入处理
+ * 
+ * 功能：
+ * - 在音频测试模式下录制音频
+ * - 编码音频数据并添加到测试队列
+ * - 控制测试时长
+ */
 void Application::OnAudioInput() {
     if (device_state_ == kDeviceStateAudioTesting) {
         if (audio_testing_queue_.size() >= AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS) {
@@ -621,6 +762,20 @@ void Application::OnAudioInput() {
     vTaskDelay(pdMS_TO_TICKS(OPUS_FRAME_DURATION_MS / 2));
 }
 
+/**
+ * @brief 读取音频数据
+ * 
+ * 工作流程：
+ * 1. 检查音频输入是否启用
+ * 2. 处理采样率不匹配的情况（重采样）
+ * 3. 处理双声道音频（分离麦克风和参考声道）
+ * 4. 返回读取的音频数据
+ * 
+ * @param data 输出音频数据
+ * @param sample_rate 目标采样率
+ * @param samples 目标采样数
+ * @return 是否成功读取音频
+ */
 bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples) {
     auto codec = Board::GetInstance().GetAudioCodec();
     if (!codec->input_enabled()) {
@@ -665,6 +820,17 @@ bool Application::ReadAudio(std::vector<int16_t>& data, int sample_rate, int sam
 }
 
 
+/**
+ * @brief 设置设备状态
+ * 
+ * 功能：
+ * - 更新设备状态枚举值
+ * - 重置时钟计数器
+ * - 等待后台任务完成
+ * - 根据状态更新显示界面
+ * 
+ * @param state 新的设备状态
+ */
 void Application::SetDeviceState(DeviceState state) {
     if (device_state_ == state) {
         return;
@@ -712,6 +878,16 @@ void Application::SetDeviceState(DeviceState state) {
     }
 }
 
+/**
+ * @brief 重置音频解码器
+ * 
+ * 功能：
+ * - 重置Opus解码器状态
+ * - 清空音频解码队列
+ * - 通知等待的线程
+ * - 启用音频输出
+ * - 更新最后输出时间
+ */
 void Application::ResetDecoder() {
     std::lock_guard<std::mutex> lock(mutex_);
     opus_decoder_->ResetState();
@@ -722,6 +898,16 @@ void Application::ResetDecoder() {
     codec->EnableOutput(true);
 }
 
+/**
+ * @brief 设置解码采样率
+ * 
+ * 当音频包的采样率或帧时长发生变化时：
+ * - 重新创建Opus解码器
+ * - 配置输出重采样器
+ * 
+ * @param sample_rate 新的采样率
+ * @param frame_duration 新的帧时长
+ */
 void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
     if (opus_decoder_->sample_rate() == sample_rate && opus_decoder_->duration_ms() == frame_duration) {
         return;
@@ -738,11 +924,25 @@ void Application::SetDecodeSampleRate(int sample_rate, int frame_duration) {
 }
 
 
+/**
+ * @brief 重启设备
+ * 
+ * 调用ESP32的esp_restart()函数重启设备
+ */
 void Application::Reboot() {
     ESP_LOGI(TAG, "Rebooting...");
     esp_restart();
 }
 
+/**
+ * @brief 检查是否可以进入睡眠模式
+ * 
+ * 条件：
+ * - 设备必须处于空闲状态
+ * - 协议连接不能有音频通道打开
+ * 
+ * @return 是否可以进入睡眠模式
+ */
 bool Application::CanEnterSleepMode() {
     if (device_state_ != kDeviceStateIdle) {
         return false;
