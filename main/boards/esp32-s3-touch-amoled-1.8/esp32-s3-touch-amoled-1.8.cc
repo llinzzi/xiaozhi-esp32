@@ -25,7 +25,7 @@
 
 #define TAG "WaveshareEsp32s3TouchAMOLED1inch8"
 
-LV_FONT_DECLARE(font_puhui_30_4);
+// LV_FONT_DECLARE(font_puhui_30_4);
 LV_FONT_DECLARE(font_awesome_30_4);
 
 class Pmic : public Axp2101 {
@@ -87,7 +87,7 @@ public:
         : SpiLcdDisplay(io_handle, panel_handle,
                     width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy,
                     {
-                        .text_font = &font_puhui_30_4,
+                        // .text_font = &font_puhui_30_4,
                         .icon_font = &font_awesome_30_4,
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
                         .emoji_font = font_emoji_32_init(),
